@@ -1,0 +1,84 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": "Simple Test",
+
+    "Parameters" : {
+        "KeyName" : {
+            "Description" : "Name of an existing EC2 KeyPair to enable SSH access to the instance",
+            "Type" : "String"
+        }
+    },
+
+    "Resources": {
+        "SecGroup" : {
+            "Type" : "AWS::EC2::SecurityGroup",
+            "Properties" : {
+                "GroupDescription" : "Enable SSH and HTTP",
+                "SecurityGroupIngress" : [ { "IpProtocol" : "tcp", "FromPort" : "22", "ToPort" : "22", "CidrIp" : "0.0.0.0/0" },
+                                           { "IpProtocol" : "tcp", "FromPort" : "80", "ToPort" : "80", "CidrIp" : "0.0.0.0/0" } ]
+            }
+        },
+
+        "Instance": {
+            "Type": "AWS::EC2::Instance",
+            "Properties": {
+                "AvailabilityZone" : "us-east-1a",
+                "ImageId": "ami-fb8e9292",
+                "InstanceType": "t1.micro",
+                "KeyName": {"Ref" : "KeyName"},
+                "SecurityGroups" : [ {"Ref" : "SecGroup"} ],
+                "UserData": {
+                    "Fn::Base64": "#!/bin/sh\n/opt/aws/bin/cfn-init -s simpletest --region us-east-1 -r Instance\n"
+                }
+            },
+            "Metadata": {
+                "AWS::CloudFormation::Init": {
+                    "config": {
+                        "packages": {
+                            "yum": {
+                                "httpd24": [],
+                                "nagios": [],
+                                "nagios-plugins-all": [],
+                                "nagios-common": []
+                            }
+                        },
+                        "files" : {
+                            "/var/www/html/index.html" : {
+                                "content" : "<b>CF/Nagios Test</b>",
+                                "mode"  : "000644",
+                                "owner" : "root",
+                                "group" : "root"
+                            }
+                        },
+                        "services": {
+                            "sysvinit": {
+                                "httpd": {
+                                    "enabled": "true",
+                                    "ensureRunning": "true"
+                                },
+                                "nagios": {
+                                    "enabled": "true",
+                                    "ensureRunning": "true"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+
+        "dns" : {
+            "Type" : "AWS::Route53::RecordSet",
+            "Properties" : {
+                "HostedZoneId" : "/hostedzone/Z3BUSIHCV4QHXU",
+                "Comment" : "CNAME for simpletest.",
+                "Name" : "simpletest.coveringclouds.com.",
+                "Type" : "CNAME",
+                "TTL" : "900",
+                "ResourceRecords" : [
+                    {"Fn::GetAtt":["Instance","PublicDnsName"]}
+                ]
+            }
+        }        
+    }
+}
